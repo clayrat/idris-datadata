@@ -34,7 +34,7 @@ tabulate : (Fin n -> x) -> Vect n x
 tabulate {n=Z}   _ = []
 tabulate {n=S k} f = f FZ :: tabulate {n=k} (f . FS)
 
--- Data.Combinators.Applicative @ contrib
+-- see also Data.Combinators.Applicative @ contrib
 [ftorFun] Functor (\x => s -> x) where
   map f a = f . a
 
@@ -123,10 +123,6 @@ duncurry f (s ** t) = f s t
 -- 1.12
 -- Nat.`plus` & `mult`
 
---data Normal : Type where
---  MkNormal : (shape : Type) -> (size : shape -> Nat) -> Normal
---
-
 record Normal where
   constructor MkNormal
   Shape : Type
@@ -153,6 +149,25 @@ PlusN (MkNormal sh1 s1) (MkNormal sh2 s2) = MkNormal (Either sh1 sh2) (either s1
 TimesN : Normal -> Normal -> Normal
 TimesN (MkNormal sh1 s1) (MkNormal sh2 s2) = MkNormal (sh1, sh2) (\(a, b) => s1 a + s2 b)
 
-nInj : Either (Interp f x) (Interp g x) -> Interp (PlusN f g) x
-nInj {f = MkNormal _ _} {g = MkNormal _ _} (Left (s ** xs))  = (Left  s ** xs)
-nInj {f = MkNormal _ _} {g = MkNormal _ _} (Right (s ** xs)) = (Right s ** xs)
+nInj : (f, g : Normal) -> Either (Interp f x) (Interp g x) -> Interp (PlusN f g) x
+nInj (MkNormal _ _) (MkNormal _ _) (Left (s ** xs))  = (Left  s ** xs)
+nInj (MkNormal _ _) (MkNormal _ _) (Right (s ** xs)) = (Right s ** xs)
+
+data InvImg : (x -> y) -> y -> Type where
+  From : (a : x) -> InvImg f (f a)
+
+nCase : (f, g : Normal) -> (sum : Interp (PlusN f g) x) -> InvImg (nInj f g) sum
+nCase (MkNormal _ _) (MkNormal _ _) (Left  s ** xs) = From $ Left (s ** xs)
+nCase (MkNormal _ _) (MkNormal _ _) (Right s ** xs) = From $ Right (s ** xs)
+
+nOut : (f, g : Normal) -> Interp (PlusN f g) x -> Either (Interp f x) (Interp g x)
+nOut f g xs0 with (nCase f g xs0)
+  nOut f g (nInj f g xs) | From xs = xs
+
+-- 1.13
+
+nPair : (f, g : Normal) -> (Interp f x, Interp g x) -> Interp (TimesN f g) x
+nPair (MkNormal _ _) (MkNormal _ _) ((s1 ** xs1), (s2 ** xs2)) = ((s1, s2) ** xs1 ++ xs2)
+
+nPairSur : (f, g : Normal) -> Interp (TimesN f g) x -> (Interp f x, Interp g x)
+nPairSur (MkNormal _ size1) (MkNormal _ _) ((s1, s2) ** xs0) = ((s1 ** take (size1 s1) xs0), (s2 ** drop (size1 s1) xs0))
