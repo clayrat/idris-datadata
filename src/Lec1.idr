@@ -3,6 +3,7 @@ module Lec1
 import Data.Vect
 import Control.Monad.Identity
 import Control.Algebra.NumericImplementations
+import Interfaces.Verified
 
 import Util
 
@@ -13,7 +14,7 @@ import Util
 -- ==1.1==
 
 
-zipPrf : (ss : List s) -> (ts : List t) -> length ss = length ts -> length (zip ss ts) = length ss  
+zipPrf : (ss : List s) -> (ts : List t) -> length ss = length ts -> length (zip ss ts) = length ss
 zipPrf []        []        Refl = Refl
 zipPrf []        (_ :: _)  prf = absurd prf
 zipPrf (_ :: _)  []        prf = absurd prf
@@ -48,14 +49,14 @@ fill : Vect n (Fin n)
 fill = tabulate id
 
 
--- ==1.3== 
+-- ==1.3==
 
 
 -- see also Data.Combinators.Applicative @ contrib
 [ftorFun] Functor (\x => s -> x) where
   map f a = f . a
 
-using implementation ftorFun  
+using implementation ftorFun
   [appFun] Applicative (\x => s -> x) where
     pure a = \_ => a            -- k: drop env
     f <*> fa = \s => f s (fa s) -- s: share env
@@ -90,7 +91,7 @@ data CompF : (f : b -> c) -> (g : a -> b) -> (x : a) -> Type where
 data Const : Type -> Type -> Type where
   MkConst : a -> Const a b
 
-getConst : Const a b -> a  
+getConst : Const a b -> a
 getConst (MkConst a) = a
 
 Functor (Const a) where
@@ -140,10 +141,10 @@ Traversable Identity where
 
 
 -- Eith : Type -> Type -> Type
--- Eith a b = (c : Bool ** if c then a else b)  
--- 
+-- Eith a b = (c : Bool ** if c then a else b)
+--
 -- duncurry : {S : Type} -> {T : S -> Type} -> {P : (s : S ** T s) -> Type} -> ((s : S) -> (t : T s) -> P (s ** t)) -> (p : (s : S ** T s)) -> P p
--- duncurry f (s ** t) = f s t 
+-- duncurry f (s ** t) = f s t
 
 
 -- ==1.5==
@@ -173,11 +174,11 @@ ListN = MkNormal Nat id
 KN : Type -> Normal
 KN a = MkNormal a (const 0)
 
-IKN : Normal 
+IKN : Normal
 IKN = VectN 1
 
 PlusN : Normal -> Normal -> Normal
-PlusN (MkNormal sh1 s1) (MkNormal sh2 s2) = MkNormal (Either sh1 sh2) (either s1 s2) 
+PlusN (MkNormal sh1 s1) (MkNormal sh2 s2) = MkNormal (Either sh1 sh2) (either s1 s2)
 
 TimesN : Normal -> Normal -> Normal
 TimesN (MkNormal sh1 s1) (MkNormal sh2 s2) = MkNormal (sh1, sh2) (\(a, b) => s1 a + s2 b)
@@ -218,7 +219,7 @@ using implementation lnSemi
 --  map {n=MkNormal _ _} f (s ** xs) = (s ** map f xs)
 --
 --[normFold] Foldable (Interp n) where
---  foldr {n=MkNormal _ _} f init (_ ** xs) = foldr f init xs 
+--  foldr {n=MkNormal _ _} f init (_ ** xs) = foldr f init xs
 --  foldl {n=MkNormal _ _} f init (_ ** xs) = foldl f init xs -- can't use default implementation here
 
 -- named implementations break down at this point, it can't find `normFold` no matter what
@@ -237,7 +238,7 @@ Functor InterpN where
 
 Foldable InterpN where
   foldr f init (MkInterpN {n=MkNormal _ _} (_ ** xs)) = foldr f init xs
-  
+
 Traversable InterpN where
   traverse f (MkInterpN {n=MkNormal sh sz} (s ** xs)) = map (MkInterpN {n=MkNormal sh sz} .% MkDPair s) (traverse f xs)
 
@@ -252,7 +253,7 @@ normalT : Traversable t => Normal
 normalT {t} = MkNormal (t ()) sizeT
 
 shapeT : Traversable t => t a -> t ()
-shapeT = runIdentity . traverse (const $ Id ()) 
+shapeT = runIdentity . traverse (const $ Id ())
 
 one : x -> Interp ListN x
 one x = (1 ** [x])
@@ -261,14 +262,14 @@ using implementation lnMon
   contentsT : Traversable t => t x -> Interp ListN x
   contentsT = crush one
 
--- ex 1.15  
+-- ex 1.15
 
 ImpN : Normal -> Normal -> Type
 ImpN f g = (s : Shape f) -> Interp g (Fin (size f s))
 
 nMorph : ImpN f g -> Interp f x -> Interp g x
-nMorph {f=MkNormal _ _} {g=MkNormal _ _} ifg (s ** xs) = 
-  let (s2 ** xs2) = ifg s in 
+nMorph {f=MkNormal _ _} {g=MkNormal _ _} ifg (s ** xs) =
+  let (s2 ** xs2) = ifg s in
   (s2 ** map (\fin => index fin xs) xs2)
 
 morphN : ({x : Type} -> Interp f x -> Interp g x) -> ImpN f g
@@ -279,18 +280,18 @@ morphN {f=MkNormal _ _} {g=MkNormal _ _} ifig s = ifig (s ** fill)
 TensorN : Normal -> Normal -> Normal
 TensorN (MkNormal sh1 sz1) (MkNormal sh2 sz2) = MkNormal (sh1, sh2) (\(s1, s2) => sz1 s1 * sz2 s2)
 
-swap : (f, g: Normal) -> (f `TensorN` g) `ImpN` (g `TensorN` f) 
+swap : (f, g: Normal) -> (f `TensorN` g) `ImpN` (g `TensorN` f)
 swap (MkNormal sh1 sz1) (MkNormal sh2 sz2) (s1, s2) = ((s2, s1) ** rewrite multCommutative (sz2 s2) (sz1 s1) in fill)
 
 using implementation PlusNatMonoid  -- for the lemma
-  drop : (f, g: Normal) -> (f `TensorN` g) `ImpN` (g `CompN` f) 
-  drop (MkNormal sh1 sz1) (MkNormal sh2 sz2) (s1, s2) = 
-    ((s2 ** replicate (sz2 s2) s1) ** 
+  drop : (f, g: Normal) -> (f `TensorN` g) `ImpN` (g `CompN` f)
+  drop (MkNormal sh1 sz1) (MkNormal sh2 sz2) (s1, s2) =
+    ((s2 ** replicate (sz2 s2) s1) **
       let lem = travConstLemma s1 (sz2 s2) sz1
-          eq = sym $ cong {t=Const Nat (Vect (sz2 s2) ())} 
-                          {f=\z=> Vect (getConst $ map (MkInterpN {n=MkNormal sh2 sz2} .% MkDPair s2) z) (Fin (sz1 s1 * sz2 s2))} 
+          eq = sym $ cong {t=Const Nat (Vect (sz2 s2) ())}
+                          {f=\z=> Vect (getConst $ map (MkInterpN {n=MkNormal sh2 sz2} .% MkDPair s2) z) (Fin (sz1 s1 * sz2 s2))}
                           lem  --"implicit" my ass
-         in 
+         in
       replace {P=id} eq fill)
     where
     travConstLemma : (x : a) -> (n: Nat) -> (f : a -> Nat) -> traverse (MkConst .% f) (Vect.replicate n x) = MkConst (f x * n)
@@ -300,5 +301,50 @@ using implementation PlusNatMonoid  -- for the lemma
 
 
 -- ==1.7==
+
+
+-- ex 1.17
+using implementation lnSemi
+  [lnVSemi] VerifiedSemigroup (Interp ListN x) where
+    semigroupOpIsAssociative     (Z   ** [])       (sc ** xsc) (sr ** xsr) = Refl
+    semigroupOpIsAssociative {x} (S k ** l :: xsl) (sc ** xsc) (sr ** xsr) =
+      cong {f=\nxs=>MkDPair (S (DPair.fst nxs)) (l :: (DPair.snd nxs))} $
+      assert_total $ -- Idris can't see decreases inside sigmas
+      semigroupOpIsAssociative (k ** xsl) (sc ** xsc) (sr ** xsr)
+
+using implementation lnMon
+  using implementation lnVSemi
+    [lnVMon] VerifiedMonoid (Interp ListN x) where
+      monoidNeutralIsNeutralL (Z   ** [])    = Refl
+      monoidNeutralIsNeutralL (S k ** x::xs) =
+        cong {f=\nxs=>MkDPair (S (DPair.fst nxs)) (x :: DPair.snd nxs) } $
+        assert_total $
+        monoidNeutralIsNeutralL (k ** xs)
+      monoidNeutralIsNeutralR (s**xs) = Refl
+
+-- ex 1.18
+-- it's `vectAppendAssociative` in Data.Vect
+-- the main issue in Idris is the IH case - the vanilla `cong` gets stuck on the associativity of lengths
+
+interface (Monoid x, Monoid y) => MonoidHom x y (f : x -> y) where
+  respNeutral : f Algebra.neutral = Algebra.neutral
+  respOp : (a, b : x) -> f (a <+> b) = f a <+> f b
+
+using implementation PlusNatMonoid
+  using implementation lnMon
+    [fstHom] MonoidHom (Interp ListN x) Nat DPair.fst where
+      respNeutral = Refl
+      respOp (sa ** xsa) (sb ** xsb) = Refl
+
+-- ex 1.19
+
+VerifiedFunctor (Vect n) where
+  functorIdentity []      = Refl
+  functorIdentity (x::xs) = cong $ functorIdentity xs
+  functorComposition []      g1 g2 = Refl
+  functorComposition (x::xs) g1 g2 = cong $ functorComposition xs g1 g2
+
+
+-- ==1.8==
 
 
