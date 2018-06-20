@@ -2,11 +2,16 @@ module Lec1
 
 import Data.Vect
 import Control.Monad.Identity
+import Control.Algebra.NumericImplementations
 
-import Control.Algebra.NumericImplementations -- for testing
+import Util
 
 %default total
 %access public export
+
+
+-- ==1.1==
+
 
 zipPrf : (ss : List s) -> (ts : List t) -> length ss = length ts -> length (zip ss ts) = length ss  
 zipPrf []        []        Refl = Refl
@@ -14,25 +19,37 @@ zipPrf []        (_ :: _)  prf = absurd prf
 zipPrf (_ :: _)  []        prf = absurd prf
 zipPrf (_ :: xs) (_ :: ys) prf = cong $ zipPrf xs ys $ succInjective (length xs) (length ys) prf
 
--- 1.1
+
+-- ==1.2==
+
+
+-- ex 1.1
 -- `vec`=`replicate`
 
--- 1.2
+-- ex 1.2
 -- `vapp`=`<*>`
 
--- 1.3
+-- ex 1.3
 vmap : (s -> t) -> Vect n s -> Vect n t
 vmap {n} f ss = replicate n f <*> ss
 
--- 1.4
+-- ex 1.4
 vzip : Vect n s -> Vect n t -> Vect n (s,t)
 vzip {n} ss ts = replicate n MkPair <*> ss <*> ts
 
--- 1.5
+-- ex 1.5
 -- proj = `index`
 tabulate : (Fin n -> x) -> Vect n x
 tabulate {n=Z}   _ = []
 tabulate {n=S k} f = f FZ :: tabulate {n=k} (f . FS)
+
+-- helper for later
+fill : Vect n (Fin n)
+fill = tabulate id
+
+
+-- ==1.3== 
+
 
 -- see also Data.Combinators.Applicative @ contrib
 [ftorFun] Functor (\x => s -> x) where
@@ -43,10 +60,10 @@ using implementation ftorFun
     pure a = \_ => a            -- k: drop env
     f <*> fa = \s => f s (fa s) -- s: share env
 
--- 1.6
+-- ex 1.6
 -- `diag (map f m)` in stdlib
 
--- 1.7
+-- ex 1.7
 -- `Control.Monad.Identity`
 data CompF : (f : b -> c) -> (g : a -> b) -> (x : a) -> Type where
   MkCompF : f (g a) -> CompF f g a
@@ -58,7 +75,17 @@ data CompF : (f : b -> c) -> (g : a -> b) -> (x : a) -> Type where
   pure a = MkCompF $ pure $ pure a
   (MkCompF f) <*> (MkCompF fga) = MkCompF $ (map (<*>) f) <*> fga
 
--- 1.8
+-- ex 1.8
+
+--[constFun] Functor (\_ => x) where
+--  map _ a = a
+--
+--using implementation constFun
+--  [constMon] (Monoid x) => Applicative (\_ => x) where
+--    pure _ = neutral
+--    fa <*> f = fa <+> f
+
+-- this gets ugly later, switching to a wrapper
 
 data Const : Type -> Type -> Type where
   MkConst : a -> Const a b
@@ -73,15 +100,8 @@ Monoid a => Applicative (Const a) where
   pure _ = MkConst neutral
   (MkConst f) <*> (MkConst fa) = MkConst (f <+> fa)
 
---[constFun] Functor (\_ => x) where
---  map _ a = a
---
---using implementation constFun
---  [constMon] (Monoid x) => Applicative (\_ => x) where
---    pure _ = neutral
---    fa <*> f = fa <+> f
+-- ex 1.9
 
--- 1.9
 data ProdF : (f : a -> b) -> (g : a -> b) -> (x : a) -> Type where
   MkProdF : f a -> g a -> ProdF f g a
 
@@ -92,15 +112,17 @@ data ProdF : (f : a -> b) -> (g : a -> b) -> (x : a) -> Type where
   pure a = MkProdF (pure a) (pure a)
   (MkProdF f g) <*> (MkProdF fa ga) = MkProdF (f <*> fa) (g <*> ga)
 
--- 1.10
+-- ex 1.10
+
 vtranspose : {n : Nat} -> Vect m (Vect n x) -> Vect n (Vect m x)
 vtranspose = sequence
 
 --using implementation constMon
 crush : (Traversable f, Monoid y) => (x -> y) -> f x -> y
-crush {y} f fx = getConst $ traverse {b=()} (MkConst . f) fx -- b is arbitrary since it's dropped
+crush {y} f fx = getConst $ traverse {b=()} (MkConst .% f) fx -- b is arbitrary since it's dropped
 
--- 1.11
+-- ex 1.11
+
 Foldable Identity where
   foldr f i (Id x) = f x i
 
@@ -113,15 +135,26 @@ Traversable Identity where
 (Traversable f, Traversable g) => Traversable (CompF f g) where
   traverse f (MkCompF fga) = map MkCompF $ traverse (traverse f) fga
 
--- will we need these?  
-Eith : Type -> Type -> Type
-Eith a b = (c : Bool ** if c then a else b)  
 
-duncurry : {S : Type} -> {T : S -> Type} -> {P : (s : S ** T s) -> Type} -> ((s : S) -> (t : T s) -> P (s ** t)) -> (p : (s : S ** T s)) -> P p
-duncurry f (s ** t) = f s t 
+-- ==1.4==
 
--- 1.12
+
+-- Eith : Type -> Type -> Type
+-- Eith a b = (c : Bool ** if c then a else b)  
+-- 
+-- duncurry : {S : Type} -> {T : S -> Type} -> {P : (s : S ** T s) -> Type} -> ((s : S) -> (t : T s) -> P (s ** t)) -> (p : (s : S ** T s)) -> P p
+-- duncurry f (s ** t) = f s t 
+
+
+-- ==1.5==
+
+
+-- ex 1.12
 -- Nat.`plus` & `mult`
+
+
+-- ==1.6==
+
 
 record Normal where
   constructor MkNormal
@@ -164,10 +197,108 @@ nOut : (f, g : Normal) -> Interp (PlusN f g) x -> Either (Interp f x) (Interp g 
 nOut f g xs0 with (nCase f g xs0)
   nOut f g (nInj f g xs) | From xs = xs
 
--- 1.13
+-- ex 1.13
 
 nPair : (f, g : Normal) -> (Interp f x, Interp g x) -> Interp (TimesN f g) x
 nPair (MkNormal _ _) (MkNormal _ _) ((s1 ** xs1), (s2 ** xs2)) = ((s1, s2) ** xs1 ++ xs2)
 
 nPairSur : (f, g : Normal) -> Interp (TimesN f g) x -> (Interp f x, Interp g x)
 nPairSur (MkNormal _ size1) (MkNormal _ _) ((s1, s2) ** xs0) = ((s1 ** take (size1 s1) xs0), (s2 ** drop (size1 s1) xs0))
+
+-- ex 1.14
+
+[lnSemi] Semigroup (Interp ListN x) where
+  (s1 ** xs1) <+> (s2 ** xs2) = (s1 + s2 ** xs1 ++ xs2)
+
+using implementation lnSemi
+  [lnMon] Monoid (Interp ListN x) where
+    neutral = (Z ** [])
+
+--[funFold] Functor (Interp n) where
+--  map {n=MkNormal _ _} f (s ** xs) = (s ** map f xs)
+--
+--[normFold] Foldable (Interp n) where
+--  foldr {n=MkNormal _ _} f init (_ ** xs) = foldr f init xs 
+--  foldl {n=MkNormal _ _} f init (_ ** xs) = foldl f init xs -- can't use default implementation here
+
+-- named implementations break down at this point, it can't find `normFold` no matter what
+--
+--using implementation normFold
+--  using implementation funFold
+--    [normTrav] Traversable (Interp n) where
+--      traverse {n=MkNormal _ _} f (s ** xs) = map (MkDPair s) (traverse f xs)
+
+-- wrapper workaround
+data InterpN : Type -> Type where
+  MkInterpN : Interp n t -> InterpN t
+
+Functor InterpN where
+  map f (MkInterpN {n=MkNormal sh sz} (s ** xs)) = MkInterpN {n=MkNormal sh sz} (s ** map f xs)
+
+Foldable InterpN where
+  foldr f init (MkInterpN {n=MkNormal _ _} (_ ** xs)) = foldr f init xs
+  
+Traversable InterpN where
+  traverse f (MkInterpN {n=MkNormal sh sz} (s ** xs)) = map (MkInterpN {n=MkNormal sh sz} .% MkDPair s) (traverse f xs)
+
+using implementation PlusNatMonoid
+  CompN : Normal -> Normal -> Normal
+  CompN (MkNormal shf szf) (MkNormal shg szg) = MkNormal (Interp (MkNormal shf szf) shg) (crush {f=InterpN} szg . MkInterpN {n=MkNormal shf szf})
+
+  sizeT : Traversable t => t x -> Nat
+  sizeT = crush (const 1)
+
+normalT : Traversable t => Normal
+normalT {t} = MkNormal (t ()) sizeT
+
+shapeT : Traversable t => t a -> t ()
+shapeT = runIdentity . traverse (const $ Id ()) 
+
+one : x -> Interp ListN x
+one x = (1 ** [x])
+
+using implementation lnMon
+  contentsT : Traversable t => t x -> Interp ListN x
+  contentsT = crush one
+
+-- ex 1.15  
+
+ImpN : Normal -> Normal -> Type
+ImpN f g = (s : Shape f) -> Interp g (Fin (size f s))
+
+nMorph : ImpN f g -> Interp f x -> Interp g x
+nMorph {f=MkNormal _ _} {g=MkNormal _ _} ifg (s ** xs) = 
+  let (s2 ** xs2) = ifg s in 
+  (s2 ** map (\fin => index fin xs) xs2)
+
+morphN : ({x : Type} -> Interp f x -> Interp g x) -> ImpN f g
+morphN {f=MkNormal _ _} {g=MkNormal _ _} ifig s = ifig (s ** fill)
+
+-- ex 1.16
+
+TensorN : Normal -> Normal -> Normal
+TensorN (MkNormal sh1 sz1) (MkNormal sh2 sz2) = MkNormal (sh1, sh2) (\(s1, s2) => sz1 s1 * sz2 s2)
+
+swap : (f, g: Normal) -> (f `TensorN` g) `ImpN` (g `TensorN` f) 
+swap (MkNormal sh1 sz1) (MkNormal sh2 sz2) (s1, s2) = ((s2, s1) ** rewrite multCommutative (sz2 s2) (sz1 s1) in fill)
+
+using implementation PlusNatMonoid  -- for the lemma
+  drop : (f, g: Normal) -> (f `TensorN` g) `ImpN` (g `CompN` f) 
+  drop (MkNormal sh1 sz1) (MkNormal sh2 sz2) (s1, s2) = 
+    ((s2 ** replicate (sz2 s2) s1) ** 
+      let lem = travConstLemma s1 (sz2 s2) sz1
+          eq = sym $ cong {t=Const Nat (Vect (sz2 s2) ())} 
+                          {f=\z=> Vect (getConst $ map (MkInterpN {n=MkNormal sh2 sz2} .% MkDPair s2) z) (Fin (sz1 s1 * sz2 s2))} 
+                          lem  --"implicit" my ass
+         in 
+      replace {P=id} eq fill)
+    where
+    travConstLemma : (x : a) -> (n: Nat) -> (f : a -> Nat) -> traverse (MkConst .% f) (Vect.replicate n x) = MkConst (f x * n)
+    travConstLemma x Z     f = cong $ sym $ multZeroRightZero (f x)
+    travConstLemma x (S k) f = trans (cong {f=\z=>(MkConst (f x)) <*> z} (travConstLemma x k f)) --rewrites don't work well here either
+                                     (sym $ cong {f=MkConst} (multRightSuccPlus (f x) k))
+
+
+-- ==1.7==
+
+
