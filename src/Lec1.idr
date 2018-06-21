@@ -348,3 +348,63 @@ VerifiedFunctor (Vect n) where
 -- ==1.8==
 
 
+-- ex 1.20
+
+[vav] VerifiedApplicative (Vect n) where
+  applicativeMap []        g = Refl
+  applicativeMap (x :: xs) g = cong $ applicativeMap xs g
+  applicativeIdentity []        = Refl
+  applicativeIdentity (x :: xs) = cong $ applicativeIdentity xs
+  applicativeComposition []        []          []          = Refl
+  applicativeComposition (x :: xs) (g1 :: gs1) (g2 :: gs2) = cong $ applicativeComposition xs gs1 gs2
+  applicativeHomomorphism {n=Z}   x g = Refl
+  applicativeHomomorphism {n=S k} x g = cong $ applicativeHomomorphism @{vav {n=k}} x g
+  applicativeInterchange x []      = Refl
+  applicativeInterchange x (g::gs) = cong $ applicativeInterchange x gs
+
+interface (Applicative f, Applicative g) => AppHom (f : Type -> Type) (g : Type -> Type) (k : {a : Type} -> f a -> g a) where
+  respPure : (x : b) -> (k (pure x) = pure x)
+  respApp : (fst : f (s -> t)) -> (fs : f s) -> k (fst <*> fs) = k fst <*> k fs
+
+liftConst : (f : x -> y) -> Const x a -> Const y a 
+liftConst f (MkConst x) = MkConst (f x)
+
+[constAH] (MonoidHom x y f) => AppHom (Const x) (Const y) (liftConst f) where
+  respPure @{mh} _ = cong $ respNeutral @{mh}
+  respApp @{mh} (MkConst a) (MkConst b) = cong $ respOp @{mh} a b
+
+-- ex 1.21
+
+data SumF : (f : a -> b) -> (g : a -> b) -> (x : a) -> Type where
+  LeftF : f x -> SumF f g x
+  RightF : g x -> SumF f g x
+
+(Functor f, Functor g) => Functor (SumF f g) where
+  map f (LeftF x)  = LeftF (map f x)
+  map f (RightF x) = RightF (map f x)  
+
+(VerifiedFunctor f, VerifiedFunctor g) => VerifiedFunctor (SumF f g) where  
+  functorIdentity (LeftF x)  = cong $ functorIdentity x
+  functorIdentity (RightF x) = cong $ functorIdentity x
+  functorComposition (LeftF x)  g1 g2 = cong $ functorComposition x g1 g2
+  functorComposition (RightF x) g1 g2 = cong $ functorComposition x g1 g2
+
+-- TODO how to generate an implementation given a function? Also `AppHom` refuses to be passed through
+
+--interface ProvideHom (f : Type -> Type) (g : Type -> Type) where
+--  provide : ImpF f g
+--
+--(Applicative f, Applicative g, ProvideHom f g) => Applicative (SumF f g) where
+--  pure x = LeftF $ pure x
+--  (LeftF fab)  <*> (LeftF fa)  = LeftF $ fab <*> fa
+--  (LeftF fab)  <*> (RightF ga) = RightF $ provide .> fab <*> ga
+--  (RightF gab) <*> (LeftF fa)  = RightF $ gab <*> provide .> fa
+--  (RightF gab) <*> (RightF ga) = RightF $ gab <*> ga
+--
+--(VerifiedApplicative f, VerifiedApplicative g, ProvideHom f g) => VerifiedApplicative (SumF f g) where
+--  applicativeMap (LeftF x) g = cong $ applicativeMap x g
+--  applicativeMap (RightF x) g = ?wat1
+--  applicativeIdentity x = ?wat2
+--  applicativeComposition x g1 g2 = ?wat3
+--  applicativeHomomorphism x g = ?wat4
+--  applicativeInterchange x g = ?wat5
