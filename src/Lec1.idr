@@ -4,6 +4,7 @@ import Data.Vect
 import Control.Monad.Identity
 import Control.Algebra.NumericImplementations
 import Interfaces.Verified
+import Syntax.PreorderReasoning
 
 import Util
 
@@ -408,3 +409,86 @@ data SumF : (f : a -> b) -> (g : a -> b) -> (x : a) -> Type where
 --  applicativeComposition x g1 g2 = ?wat3
 --  applicativeHomomorphism x g = ?wat4
 --  applicativeInterchange x g = ?wat5
+
+interface Traversable t => VerifiedTraversable (t : Type -> Type) where
+  lawId : (xs : t x) -> traverse Id xs = Id xs
+  lawCo : (VerifiedApplicative fa, VerifiedApplicative ga) => (xs : t x) -> (f : x -> fa y) -> (g : y -> ga z) 
+       -> traverse (MkCompF . map g . f) xs = MkCompF {f=fa} {g=ga} {a=t z} $ map (traverse g) $ traverse f xs
+  lawHom : (VerifiedApplicative fa, VerifiedApplicative ga) => (xs : t x) -> (f : x -> fa y) -> (g : (z : Type) -> fa z -> ga z) -- refuses to work when a is implicit
+       -> traverse (g y . f) xs = g (t y) $ traverse f xs
+
+-- TODO we get in a jam here with Const/getConst rewrapping       
+--using implementation PlusNatMonoid
+--  using implementation lnMon
+--    using implementation fstHom
+--      using implementation constAH
+--        lengthContentsSizeShape : VerifiedTraversable f => (fx : f x) -> fst (contentsT fx) = sizeT (shapeT fx)
+--        lengthContentsSizeShape fx = 
+--          (DPair.fst (getConst (traverse (MkConst .% one) fx)))
+--            ={ sym $ lawHom {ga = Lec1.Const Nat} fx one (\z => DPair.fst) }= 
+--          (DPair.fst (getConst (traverse (MkConst .% one) fx)))    
+--            ={ ?wat }=
+--          (getConst (traverse (MkConst .% (\_ => 1)) (runIdentity (traverse (\_ => Id ()) fx))))
+--            QED
+
+lengthContentsSizeShape : VerifiedTraversable f => (fx : f x) -> fst (contentsT fx) = sizeT (shapeT fx)
+lengthContentsSizeShape fx = really_believe_me fx
+
+toNormal : VerifiedTraversable t => t x -> Interp (normalT {t}) x
+toNormal tx = (shapeT tx ** rewrite sym $ lengthContentsSizeShape tx in snd $ contentsT tx)
+
+-- ex 1.22
+
+Batch : Type -> Type -> Type
+Batch x y = (n : Nat ** Vect n x -> y)
+
+[batchFun] Functor (Batch x) where
+  map f (n ** fxs) = (n ** f . fxs)
+
+-- can't see batchFun here :(  
+--using implementation batchFun
+--  [batchApp] Applicative (Batch x) where
+--    pure b = ?wat
+--    f <*> fa = ?wat2
+
+--fromNormal : VerifiedTraversable t => Interp (normalT {t}) x -> t x
+--fromNormal (tu ** xs) = ?wat
+
+
+-- ==1.9==
+
+
+data Tree : Normal -> Type where
+  MkTree : Interp n (Tree n) -> Tree n
+
+NatT : Normal
+NatT = MkNormal Bool (\b => if b then 0 else 1)  
+
+zeroT : Tree NatT
+zeroT = MkTree (True ** [])  
+
+sucT : Tree NatT -> Tree NatT
+sucT n = MkTree (False ** [n])
+
+-- ex 1.23
+
+NatInd : (p : Tree NatT -> Type) -> p Lec1.zeroT -> ((n : Tree NatT) -> p n -> p (sucT n)) -> (n : Tree NatT) -> p n
+NatInd p z s (MkTree (True ** []))   = z
+NatInd p z s (MkTree (False ** [n])) = s n (NatInd p z s n)
+
+All : (p : x -> Type) -> Vect n x -> Type
+All p []      = ()
+All p (x::xs) = (p x, All p xs)
+
+-- can't formulate this, Idris can't figure out that Interp only has a single case
+--induction : (n : Normal) -> (p : Tree n -> Type) -> ((s : Shape n) -> (ts : Vect (size n s) (Tree n)) -> All p ts -> p (MkTree $ MkDPair {P=\z=>Vect (size n z) (Tree n)} s ts)) -> (t : Tree n) -> p t
+--induction n p s (sh ** ts) = ?wat
+
+-- ex 1.24
+
+DecEq (Shape n) => DecEq (Tree n) where
+  decEq {n = MkNormal sh sz} (MkTree (s1 ** ts1)) (MkTree (s2 ** ts2)) with (decEq s1 s2)
+    decEq {n = MkNormal sh sz} (MkTree (s1 ** ts1)) (MkTree (s1 ** ts2)) | Yes Refl with (assert_total $ decEq ts1 ts2)
+      decEq {n = MkNormal sh sz} (MkTree (s1 ** ts1)) (MkTree (s1 ** ts1)) | Yes Refl | Yes Refl = Yes Refl
+      decEq {n = MkNormal sh sz} (MkTree (s1 ** ts1)) (MkTree (s1 ** ts2)) | Yes Refl | No contra = No (\Refl => contra Refl)
+    decEq {n = MkNormal sh sz} (MkTree (s1 ** ts1)) (MkTree (s2 ** ts2)) | No contra = No (\Refl => contra Refl)
