@@ -12,7 +12,7 @@ import Util
 %access public export
 
 
--- ==1.1==
+-- ==1.1 Zipping==
 
 
 zipPrf : (ss : List s) -> (ts : List t) -> length ss = length ts -> length (zip ss ts) = length ss
@@ -22,7 +22,7 @@ zipPrf (_ :: _)  []        prf = absurd prf
 zipPrf (_ :: xs) (_ :: ys) prf = cong $ zipPrf xs ys $ succInjective (length xs) (length ys) prf
 
 
--- ==1.2==
+-- ==1.2 Vectors==
 
 
 -- ex 1.1
@@ -50,7 +50,7 @@ fill : Vect n (Fin n)
 fill = tabulate id
 
 
--- ==1.3==
+-- ==1.3 Applicative & Traversable==
 
 
 -- see also Data.Combinators.Applicative @ contrib
@@ -138,7 +138,7 @@ Traversable Identity where
   traverse f (MkCompF fga) = map MkCompF $ traverse (traverse f) fga
 
 
--- ==1.4==
+-- ==1.4 Equipment==
 
 
 -- Eith : Type -> Type -> Type
@@ -148,14 +148,14 @@ Traversable Identity where
 -- duncurry f (s ** t) = f s t
 
 
--- ==1.5==
+-- ==1.5 Arithmetic==
 
 
 -- ex 1.12
 -- Nat.`plus` & `mult`
 
 
--- ==1.6==
+-- ==1.6 Normal==
 
 
 record Normal where
@@ -301,7 +301,7 @@ using implementation PlusNatMonoid  -- for the lemma
                                      (sym $ cong {f=MkConst} (multRightSuccPlus (f x) k))
 
 
--- ==1.7==
+-- ==1.7 Proving==
 
 
 -- ex 1.17
@@ -346,7 +346,7 @@ VerifiedFunctor (Vect n) where
   functorComposition (x::xs) g1 g2 = cong $ functorComposition xs g1 g2
 
 
--- ==1.8==
+-- ==1.8 Laws==
 
 
 -- ex 1.20
@@ -455,7 +455,7 @@ Batch x y = (n : Nat ** Vect n x -> y)
 --fromNormal (tu ** xs) = ?wat
 
 
--- ==1.9==
+-- ==1.9 Fixpoints==
 
 
 data Tree : Normal -> Type where
