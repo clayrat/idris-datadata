@@ -4,4 +4,4 @@ sourcedir = src
 
 modules = Main
 
-opts = "-p contrib"
+pkgs = contrib

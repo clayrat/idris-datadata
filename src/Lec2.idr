@@ -32,15 +32,15 @@ IntTy : Ty -> Type
 IntTy I = Nat
 IntTy (Fn s t) = IntTy s -> IntTy t
 
-IntC : Cx Ty -> (Ty -> Type) -> Type
-IntC  NCx v      = ()
-IntC (CCx g s) v = (IntC g v, v s)
+IntCx : Cx Ty -> (Ty -> Type) -> Type
+IntCx  NCx      _ = ()
+IntCx (CCx g s) v = (IntCx g v, v s)
 
-IntD : DeB t g -> IntC g v -> v t
+IntD : DeB t g -> IntCx g v -> v t
 IntD  ZI    (g, t) = t
 IntD (SI i) (g, s) = IntD i g
 
-IntTm : Tm g t -> IntC g IntTy -> IntTy t
+IntTm : Tm g t -> IntCx g IntTy -> IntTy t
 IntTm (Var i)   g = IntD i g
 IntTm (Lam t)   g = \s => IntTm t (g, s)
 IntTm (App f s) g = IntTm f g (IntTm s g)
@@ -124,6 +124,7 @@ test' = lambda' $ \f => lambda' $ \x => App f (App f x)
 
 
 -- ==2.5 Hereditary==
+
 
 mutual 
   data NF : Cx Ty -> Ty -> Type where
@@ -212,3 +213,79 @@ church2 = lambda' $ \f => lambda' $ \x => App f (App f x)
 
 try2 : NF NCx ((I `Fn` I) `Fn` (I `Fn` I))
 try2 = normalize (App (App church2 church2) church2)
+
+
+-- ==2.6 NbE==
+
+
+data Stop : Cx Ty -> Ty -> Type where
+  VarS : DeB t g -> Stop g t
+  AppS : Stop g (Fn s t) -> NF g s -> Stop g t
+
+-- ex 2.7
+
+renSt : Ren g d -> Stop g t -> Stop d t
+renSt r (VarS x)   = VarS (r x)
+renSt r (AppS s n) = AppS (renSt r s) (renNm r n)
+
+stopSp : Stop g t -> Spi g t -> NF g I
+stopSp (VarS x)   ss = AppN x ss
+stopSp (AppS s n) ss = stopSp s (CSp n ss)
+
+mutual 
+  Val : Cx Ty -> Ty -> Type
+  Val g t = Either (Go g t) (Stop g t)
+
+  Go : Cx Ty -> Ty -> Type
+  Go g  I       = Void
+  Go g (Fn s t) = {d : Cx Ty} -> Ren g d -> Val d s -> Val d t
+
+-- ex 2.8
+
+renVal : (t : Ty) -> Ren g d -> Val g t -> Val d t
+renVal  I       r (Left g)  = absurd g
+renVal (Fn s t) r (Left g)  = Left $ \r',g' => g (r' . r) g'
+renVal  t       r (Right s) = Right (renSt r s)
+
+renVals : (t : Cx Ty) -> Ren g d -> IntCx t (Val g) -> IntCx t (Val d)
+renVals  NCx       r ()      = ()
+renVals (CCx ts t) r (ti, v) = (renVals ts r ti, renVal t r v)
+
+idEnv : (g : Cx Ty) -> IntCx g (Val g)
+idEnv  NCx       = ()
+idEnv (CCx gs g) = (renVals gs SI (idEnv gs), Right $ VarS ZI)
+
+-- ex 2.9
+
+mutual
+  applyVal : Val g (Fn s t) -> Val g s -> Val g t
+  applyVal     (Left f)  v = f id v
+  applyVal {s} (Right f) v = Right $ AppS f (quoteVal s v)
+
+  quoteVal : (t : Ty) -> Val g t -> NF g t
+  quoteVal  I       (Left v)  = absurd v
+  quoteVal (Fn s t) (Left v)  = LamN (quoteVal t (v SI (Right $ VarS ZI)))
+  quoteVal  t       (Right v) = eta' (\d => stopSp (renSt (weak d) v))
+
+-- ex 2.10
+
+eval : Tm g t -> IntCx g (Val d) -> Val d t
+eval     (Var  ZI)    (gi, v) = v
+eval     (Var (SI i)) (gi, v) = assert_total $ eval (Var i) gi   -- not sure why it can't see `gi`
+eval {g} (Lam t)       gi     = Left $ \r, v => eval t (renVals g r gi, v)
+eval     (App f s)     gi     = applyVal (eval f gi) (eval s gi)
+
+normByEval : Tm g t -> NF g t 
+normByEval {g} {t} tm = quoteVal t (eval tm (idEnv g))
+
+try3 : NF NCx (((I `Fn` I) `Fn` (I `Fn` I)) `Fn` ((I `Fn` I) `Fn` (I `Fn` I)))
+try3 = normByEval (lambda' $ \x => x)
+
+try4 : NF NCx ((I `Fn` I) `Fn` (I `Fn` I))
+try4 = normByEval (App (App church2 church2) church2)
+
+-- ex 2.11
+-- TODO
+
+-- ex 2.12 
+-- TODO
