@@ -170,3 +170,45 @@ mutual
   renSp : Ren g d -> Spi g t -> Spi d t
   renSp r  NSp      = NSp
   renSp r (CSp n s) = CSp (renNm r n) (renSp r s)
+
+-- ex 2.5
+
+mutual 
+  herSubNF : (x : DeB s g) -> NF (remove g x) s -> NF g t -> NF (remove g x) t
+  herSubNF x s (LamN n)   = LamN $ herSubNF (SI x) (renNm SI s) n
+  herSubNF x s (AppN w z) with (veq x w)
+    herSubNF x s (AppN x z)          | Same   = appNFSpi s (herSubSpi x s z)
+    herSubNF x s (AppN (thin x p) z) | Diff p = AppN p (herSubSpi x s z)
+
+  herSubSpi : (x : DeB s g) -> NF (remove g x) s -> Spi g t -> Spi (remove g x) t
+  herSubSpi x s NSp       = NSp
+  herSubSpi x s (CSp z w) = CSp (herSubNF x s z) (herSubSpi x s w)
+
+  appNFSpi : NF g t -> Spi g t -> NF g I
+  appNFSpi f         NSp      = f
+  appNFSpi (LamN b) (CSp m s) = appNFSpi (herSubNF ZI m b) s
+
+-- ex 2.6
+
+mutual
+  eta : DeB s g -> NF g s
+  eta v = eta' (\d => AppN (weak d v))
+  
+  eta' : ((d : List Ty) -> Spi (fish g d) s -> NF (fish g d) I) -> NF g s
+  eta' {s=I}      c = c [] NSp
+  eta' {s=Fn s t} c = LamN (eta' $ \d, sp => c (s :: d) (CSp (eta (weak d ZI)) sp))
+
+normalize : Tm g t -> NF g t
+normalize (Var v) = eta v
+normalize (Lam t) = LamN (normalize t)
+normalize (App f s) with (normalize f, normalize s)
+  normalize (App f s) | (LamN t, s') = herSubNF ZI s' t
+
+try1 : NF NCx (((I `Fn` I) `Fn` (I `Fn` I)) `Fn` ((I `Fn` I) `Fn` (I `Fn` I)))
+try1 = normalize (lambda' $ \x => x)
+
+church2 : Tm NCx ((t `Fn` t) `Fn` (t `Fn` t)) 
+church2 = lambda' $ \f => lambda' $ \x => App f (App f x)
+
+try2 : NF NCx ((I `Fn` I) `Fn` (I `Fn` I))
+try2 = normalize (App (App church2 church2) church2)
