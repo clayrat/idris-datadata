@@ -1,6 +1,9 @@
-module ArityGen 
+module ArityGen.Ch2
 
 import Data.Vect
+
+%default total
+%access public export
 
 -- 2.2 Arity-Generic Vector Map
 
