@@ -1,4 +1,4 @@
-module Lec1
+module DataData.Lec1
 
 import Data.Vect
 import Control.Monad.Identity

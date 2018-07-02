@@ -1,4 +1,4 @@
-module Lec2
+module DataData.Lec2
 
 %default total
 %access public export
